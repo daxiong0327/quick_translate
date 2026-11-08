@@ -2,11 +2,15 @@ import CryptoKit
 import Darwin
 import Foundation
 
-/// Owns a single, explicitly selected project file. No Keychain or system preference writes.
+/// Owns a single, explicitly selected file. No Keychain or system preference writes.
 public actor EnvironmentSettingsStore {
   public nonisolated let fileURL: URL
+  private let createsParentDirectory: Bool
 
-  public init(fileURL: URL) { self.fileURL = fileURL }
+  public init(fileURL: URL, createsParentDirectory: Bool = false) {
+    self.fileURL = fileURL
+    self.createsParentDirectory = createsParentDirectory
+  }
 
   public func load() throws -> SettingsSnapshot {
     let data = try read()
@@ -23,6 +27,18 @@ public actor EnvironmentSettingsStore {
     let temporary = fileURL.deletingLastPathComponent().appendingPathComponent(
       ".env.\(UUID().uuidString).tmp")
     let manager = FileManager.default
+    if createsParentDirectory {
+      let directory = fileURL.deletingLastPathComponent()
+      do {
+        try manager.createDirectory(
+          at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let attributes = try manager.attributesOfItem(atPath: directory.path)
+        guard attributes[.type] as? FileAttributeType == .typeDirectory else {
+          throw SettingsError.unwritableFile
+        }
+        try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+      } catch { throw SettingsError.unwritableFile }
+    }
     guard
       manager.createFile(
         atPath: temporary.path, contents: data, attributes: [.posixPermissions: 0o600])
