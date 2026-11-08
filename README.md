@@ -9,5 +9,6 @@
 - [编码工具规则](AGENTS.md)
 - [规范迁移记录](docs/tasks/tasks/M001-T001.md)
 - [第一版实现规划](docs/tasks/milestones/M002.md)
+- [第一版验收计划](docs/testing/M002.md)
 
-本地 Git 仓库已建立，主分支为 `main`。需求与规范按独立 Task 分支审查、验证和合并；尚未配置远程仓库。开始应用实现前需确定开发环境与平台选型。
+本地 Git 仓库已建立，主分支为 `main`。需求与规范按独立 Task 分支审查、验证和合并；尚未配置远程仓库。技术方向为 Swift、SwiftUI 与 AppKit 的原生 macOS 工具；开始应用实现前需核实工具链、系统版本与实际检查入口。
