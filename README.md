@@ -11,7 +11,7 @@
 - [第一版实现规划](docs/tasks/milestones/M002.md)
 - [第一版验收计划](docs/testing/M002.md)
 
-本地 Git 仓库已建立，主分支为 `main`，尚未配置远程仓库。菜单栏与配置任务 M002-T001 已合并；翻译任务 M002-T002 在 `feat/m002-t002-selection-translation` 分支验证中，尚未提交或合并。
+本地 Git 仓库已建立，主分支为 `main`，尚未配置远程仓库。菜单栏与配置任务 M002-T001 已合并；翻译任务 M002-T002 在 `feat/m002-t002-selection-translation` 分支验证中，已按用户要求保存本地阶段提交 `ce8c7a7`，尚未合并。
 
 ## 本地构建与配置
 
