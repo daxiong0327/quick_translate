@@ -52,3 +52,13 @@
 - 同一目录的 `AGENTS.md` 与 `CLAUDE.md` 保持语义一致；根文件维护共同底线，子项目文件补充明确限定于该目录的要求。不得默默降低验收标准；发现冲突先澄清适用范围并修正规则。
 - 根规则与子规则应能同时执行，不依赖工具自动用子规则覆盖根规则。新增子项目时补齐两个入口，并在确定选型后登记实际检查命令。
 - 完成报告给出 Task ID、改动、审查、验证、分支与合并结果及限制。不能把已生成、已提交、已合并、已测试和已部署混为同一状态。
+
+## 本地配置约定
+
+- 按用户最新要求，API Key 保存在项目 `.env`，不写系统钥匙串或系统偏好。`.env` 必须被 Git 忽略，示例文件不能含真实密钥。修改配置须原子写入并保留其他内容；日志与错误不得回显密钥。
+
+## Swift 实现规则
+
+- 单一 SwiftPM 工程，Swift 6，最低 macOS 13。界面和 AppKit 生命周期在主 actor，文件与网络工作通过独立 actor 或异步接口完成；模块保持单向依赖。
+- 检查入口：`python3 scripts/swift-tool.py test --enable-code-coverage --disable-xctest`、`xcrun swift-format lint --strict --recursive Package.swift Sources Tests`、`sh scripts/build-app.sh`。实际测试框架为 Swift Testing。
+- 本地应用烟测：`python3 scripts/smoke-settings.py`。只使用隔离的示例配置；不得将真实 Key 或私密文本放入报告。
