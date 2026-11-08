@@ -9,8 +9,22 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def detach(mount):
+    # Finder/metadata services can briefly retain a freshly mounted image after copying finishes.
+    for attempt in range(5):
+        result = subprocess.run(["/usr/bin/hdiutil", "detach", str(mount)], capture_output=True, text=True)
+        if result.returncode == 0:
+            return
+        if result.returncode != 16 or attempt == 4:
+            raise RuntimeError(f"Unable to detach test image (exit {result.returncode}): {mount}")
+        time.sleep(1)
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("image", type=Path)
 args = parser.parse_args()
@@ -41,7 +55,7 @@ try:
     subprocess.run(["/usr/bin/codesign", "--verify", "--strict", str(installed)], check=True)
 finally:
     if attached:
-        subprocess.run(["/usr/bin/hdiutil", "detach", str(mount)], check=True)
+        detach(mount)
 subprocess.run([sys.executable, str(ROOT / "scripts/smoke-settings.py"),
                 "--application", str(installed), "--portable"], check=True)
 (evidence / "result.json").write_text(json.dumps({
