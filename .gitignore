@@ -1,0 +1,16 @@
+# macOS metadata
+.DS_Store
+
+# Local credentials and environment configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# Local build outputs and logs
+build/
+.build/
+DerivedData/
+*.log
