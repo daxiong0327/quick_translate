@@ -64,3 +64,7 @@ python3 scripts/test-signing.py
 ## 图标
 
 应用采用最新确认的轻笔画、分离式小写 `qt`，保留 q 的自然下伸和 t 的弧度。应用图标为浅色圆角底与黑色字形；菜单栏和翻译页采用适配系统外观的单色标识，18 点菜单栏图形有轻微笔画补偿。批准参考保存在 [qt-logo-flowing-reference.png](docs/design/qt-logo-flowing-reference.png)，原生曲线实现位于 `Sources/QuickTranslate/BrandIcon.swift`。窗口与构建导出的多尺寸图标共用同一定义，运行时不依赖参考图片或字体。构建时在临时目录导出 iconset，再生成应用内的 `QuickTranslate.icns`。
+
+## 许可证
+
+本项目采用远端仓库已有的 [MIT 许可证](LICENSE)。
