@@ -8,11 +8,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var settingsWindow: NSWindow?
   private var settingsModel: SettingsModel?
   private var smoke: (directory: URL, phase: String)?
+  private var hotKeys: HotKeyController?
+  private var translation: TranslationController?
+  private var translationPanel: TranslationPanelController?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     let arguments = CommandLine.arguments
     if arguments.count == 4, arguments[1] == "--smoke-test",
-      ["save", "reload"].contains(arguments[3])
+      ["save", "reload", "translation"].contains(arguments[3])
     {
       let directory = URL(fileURLWithPath: arguments[2])
       guard directory.lastPathComponent.hasPrefix("quick-translate-smoke-") else { exit(2) }
@@ -42,13 +45,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     item.menu = menu
     statusItem = item
     installApplicationMenu()
-    showSettings()
     if let smoke {
+      showSettings()
       Task {
         try? await Task.sleep(for: .milliseconds(500))
         await runSmoke(in: smoke.directory, phase: smoke.phase)
       }
+    } else {
+      setupTranslation(store: store)
+      Task {
+        do {
+          let configuration = try await store.load().draft
+          let shortcutWarning = applyShortcut(configuration.shortcut)
+          if shortcutWarning != nil || (try? configuration.validated()) == nil { showSettings() }
+        } catch { showSettings() }
+      }
     }
+  }
+
+  private func setupTranslation(
+    store: EnvironmentSettingsStore,
+    client: any TranslationServing = OpenAITranslationClient(),
+    capture: @escaping @MainActor (NSRunningApplication?) async throws -> String = {
+      try await SystemSelection().capture(from: $0)
+    }
+  ) {
+    let model = TranslationController(store: store, client: client, capture: capture)
+    let panel = TranslationPanelController(model: model) { [weak self] in
+      self?.translation?.close()
+      self?.showSettings()
+    }
+    panel.onDismiss = { [weak model] in model?.close() }
+    model.onBegin = { [weak panel] in panel?.hide() }
+    model.onChange = { [weak model, weak panel] in
+      guard let model else { return }
+      if model.state.phase == .hidden {
+        panel?.hide()
+      } else if model.state.phase != .capturing {
+        panel?.show(near: model.anchor)
+      }
+    }
+    let keys = HotKeyController()
+    keys.onPress = { [weak model] in model?.translateSelection() }
+    hotKeys = keys
+    translation = model
+    translationPanel = panel
+    settingsModel?.onSaved = { [weak self] choice in self?.applyShortcut(choice) }
+  }
+
+  private func applyShortcut(_ choice: Shortcut) -> String? {
+    guard let hotKeys else { return nil }
+    do {
+      try hotKeys.register(choice)
+      settingsModel?.activeShortcutDescription = "当前快捷键：\(choice.label)"
+      return nil
+    } catch {
+      settingsModel?.activeShortcutDescription =
+        hotKeys.shortcut.map { "当前仍使用：\($0.label)" } ?? "快捷键未启用，可能与其他应用冲突，请更换组合。"
+      return "配置已保存，但所选快捷键未启用。可能与其他应用冲突，请更换组合。"
+    }
+  }
+
+  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool
+  {
+    showSettings()
+    return true
   }
 
   private func installApplicationMenu() {
@@ -99,7 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       menu.performActionForItem(at: 0)
       guard window.isVisible else { throw SettingsError.unreadableFile }
       await model.reload()
-      if phase == "save" {
+      if phase != "reload" {
         model.baseURL = "https://example.com/compatible-mode/v1"
         model.model = "smoke-test-model"
         model.apiKey = "fixture-not-a-real-api-key"
@@ -113,6 +174,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       guard model.succeeded, model.model == "smoke-test-model",
         model.apiKey == "fixture-not-a-real-api-key"
       else { throw SettingsError.unreadableFile }
+      var checks = [String: String]()
+      if phase == "translation" {
+        let source = SmokeSelection()
+        setupTranslation(
+          store: model.store, client: SmokeTranslationClient(), capture: { _ in source.text })
+        guard let translation, let translationPanel, let hotKeys else {
+          throw TranslationError.invalidResponse
+        }
+        checks = try await TranslationSmoke.run(
+          model: translation, panel: translationPanel, source: source,
+          settingsWindow: window, hotKeys: hotKeys, directory: directory)
+      }
       try await Task.sleep(for: .milliseconds(200))
       if let snapshot = CGWindowListCreateImage(
         .null, .optionIncludingWindow, CGWindowID(window.windowNumber),
@@ -124,7 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       }
       let report = [
         "phase": phase, "result": "passed", "menuOpen": "passed", "fileStorage": "passed",
-      ]
+      ].merging(checks) { current, _ in current }
       try JSONSerialization.data(withJSONObject: report).write(
         to: directory.appendingPathComponent("\(phase).json"))
       print("APP SMOKE \(phase): PASS")
@@ -137,6 +210,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationWillTerminate(_ notification: Notification) {
+    translation?.close()
+    translationPanel?.hide()
+    hotKeys?.stop()
     if let item = statusItem { NSStatusBar.system.removeStatusItem(item) }
     settingsWindow?.close()
   }

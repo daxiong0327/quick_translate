@@ -7,6 +7,9 @@ final class SettingsModel: ObservableObject {
   @Published var baseURL = ""
   @Published var model = ""
   @Published var apiKey = ""
+  @Published var shortcut: Shortcut = .optionD
+  @Published var activeShortcutDescription = "快捷键尚未启用"
+  var onSaved: ((Shortcut) -> String?)?
   @Published var busy = false
   @Published var message = ""
   @Published var succeeded = false
@@ -24,6 +27,7 @@ final class SettingsModel: ObservableObject {
       baseURL = snapshot.draft.baseURL
       model = snapshot.draft.model
       apiKey = snapshot.draft.apiKey
+      shortcut = snapshot.draft.shortcut
       revision = snapshot.revision
       succeeded = true
       message = "配置保存在项目 .env，仅在本机读取。"
@@ -44,13 +48,18 @@ final class SettingsModel: ObservableObject {
     defer { busy = false }
     do {
       let snapshot = try await store.save(
-        SettingsDraft(baseURL: baseURL, model: model, apiKey: apiKey), expectedRevision: revision)
+        SettingsDraft(baseURL: baseURL, model: model, apiKey: apiKey, shortcut: shortcut),
+        expectedRevision: revision)
       self.revision = snapshot.revision
       baseURL = snapshot.draft.baseURL
       model = snapshot.draft.model
       apiKey = snapshot.draft.apiKey
       succeeded = true
       message = "已保存到 .env。接口是否可用将在实际翻译时验证。"
+      if let warning = onSaved?(shortcut) {
+        succeeded = false
+        message = warning
+      }
     } catch { report(error) }
   }
 
@@ -79,7 +88,18 @@ struct SettingsView: View {
           .accessibilityIdentifier("model")
         SecureField("API Key", text: $state.apiKey, prompt: Text("保存在本项目 .env"))
           .accessibilityIdentifier("apiKey")
+        Picker("翻译快捷键", selection: $state.shortcut) {
+          ForEach(Shortcut.allCases, id: \.self) { choice in Text(choice.label).tag(choice) }
+        }
       }.textFieldStyle(.roundedBorder)
+      Text(state.activeShortcutDescription).font(.caption).foregroundStyle(.secondary)
+      Button("打开辅助功能权限设置…") {
+        if let url = URL(
+          string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        {
+          NSWorkspace.shared.open(url)
+        }
+      }.buttonStyle(.link)
       Text("翻译时，选中的文字会发送到你配置的服务地址。复制选区会覆盖剪贴板。")
         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
       Divider()

@@ -29,11 +29,16 @@ public struct SettingsDraft: Sendable, Equatable, CustomStringConvertible,
   public var baseURL: String
   public var model: String
   public var apiKey: String
+  public var shortcut: Shortcut
 
-  public init(baseURL: String = "", model: String = "", apiKey: String = "") {
+  public init(
+    baseURL: String = "", model: String = "", apiKey: String = "",
+    shortcut: Shortcut = .optionD
+  ) {
     self.baseURL = baseURL
     self.model = model
     self.apiKey = apiKey
+    self.shortcut = shortcut
   }
 
   public var description: String { "SettingsDraft(credentials: <redacted>)" }
@@ -43,7 +48,7 @@ public struct SettingsDraft: Sendable, Equatable, CustomStringConvertible,
     let result = SettingsDraft(
       baseURL: baseURL.trimmingCharacters(in: .whitespacesAndNewlines),
       model: model.trimmingCharacters(in: .whitespacesAndNewlines),
-      apiKey: apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+      apiKey: apiKey.trimmingCharacters(in: .whitespacesAndNewlines), shortcut: shortcut
     )
     guard let url = URLComponents(string: result.baseURL), url.scheme == "https",
       let host = url.host, !host.isEmpty, url.user == nil, url.password == nil,
@@ -68,7 +73,7 @@ public struct SettingsSnapshot: Sendable {
 
 /// The file is parsed as data, never executed or expanded by a shell.
 struct EnvironmentDocument {
-  static let keys = ["OPENAI_BASE_URL", "OPENAI_MODEL", "DASHSCOPE_API_KEY"]
+  static let keys = ["OPENAI_BASE_URL", "OPENAI_MODEL", "DASHSCOPE_API_KEY", "QT_SHORTCUT"]
   var lines: [String]
   var positions: [String: Int] = [:]
   var values: [String: String] = [:]
@@ -85,6 +90,9 @@ struct EnvironmentDocument {
       let raw = String(entry[entry.index(after: equal)...]).trimmingCharacters(
         in: .whitespacesAndNewlines)
       values[key] = try Self.decode(raw, line: index + 1)
+      if key == "QT_SHORTCUT", Shortcut(rawValue: values[key] ?? "") == nil {
+        throw SettingsError.malformedFile(line: index + 1)
+      }
       positions[key] = index
     }
   }
@@ -92,11 +100,14 @@ struct EnvironmentDocument {
   var draft: SettingsDraft {
     SettingsDraft(
       baseURL: values[Self.keys[0]] ?? "", model: values[Self.keys[1]] ?? "",
-      apiKey: values[Self.keys[2]] ?? "")
+      apiKey: values[Self.keys[2]] ?? "",
+      shortcut: Shortcut(rawValue: values["QT_SHORTCUT"] ?? "") ?? .optionD)
   }
 
   mutating func replacing(with draft: SettingsDraft) throws -> Data {
-    for (key, value) in zip(Self.keys, [draft.baseURL, draft.model, draft.apiKey]) {
+    for (key, value) in zip(
+      Self.keys, [draft.baseURL, draft.model, draft.apiKey, draft.shortcut.rawValue])
+    {
       let encoded = String(decoding: try JSONEncoder().encode(value), as: UTF8.self)
       let line = "\(key)=\(encoded)"
       if let index = positions[key] { lines[index] = line } else { lines.append(line) }
