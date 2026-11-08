@@ -22,19 +22,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       return
     }
     if arguments.count == 4, arguments[1] == "--smoke-test",
-      ["save", "reload", "translation"].contains(arguments[3])
+      ["save", "reload", "translation", "portable-save", "portable-reload"].contains(arguments[3])
     {
       let directory = URL(fileURLWithPath: arguments[2])
       guard directory.lastPathComponent.hasPrefix("quick-translate-smoke-") else { exit(2) }
       smoke = (directory, arguments[3])
     }
-    let path =
-      smoke?.directory.appendingPathComponent(".env").path
-      ?? Bundle.main.object(forInfoDictionaryKey: "QTEnvironmentFile") as? String
-      ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(
-        ".env"
-      ).path
-    let store = EnvironmentSettingsStore(fileURL: URL(fileURLWithPath: path))
+    let portableSmoke = smoke?.phase.hasPrefix("portable-") == true
+    let location = EnvironmentLocation(
+      projectPath: Bundle.main.object(forInfoDictionaryKey: "QTEnvironmentFile") as? String,
+      homeDirectory: portableSmoke
+        ? smoke!.directory : FileManager.default.homeDirectoryForCurrentUser)
+    if portableSmoke {
+      guard location.createsParentDirectory,
+        location.fileURL.path.hasPrefix(smoke!.directory.path + "/")
+      else { exit(2) }
+    }
+    let store = EnvironmentSettingsStore(
+      fileURL: portableSmoke || smoke == nil
+        ? location.fileURL : smoke!.directory.appendingPathComponent(".env"),
+      createsParentDirectory: (portableSmoke || smoke == nil) && location.createsParentDirectory)
     settingsModel = SettingsModel(store: store)
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     item.button?.image = BrandIcon.image(size: 18, style: .menu)
@@ -55,7 +62,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       showSettings()
       Task {
         try? await Task.sleep(for: .milliseconds(500))
-        await runSmoke(in: smoke.directory, phase: smoke.phase)
+        await runSmoke(
+          in: smoke.directory, phase: smoke.phase.replacingOccurrences(of: "portable-", with: ""))
       }
     } else {
       setupTranslation(store: store)

@@ -14,7 +14,9 @@
 __pycache__/
 
 # Local build outputs and logs
-build/
+build/*
+!build/Quick-Translate-0.1.0-arm64.dmg
+!build/Quick-Translate-0.1.0-arm64.dmg.sha256
 .build/
 DerivedData/
 *.log

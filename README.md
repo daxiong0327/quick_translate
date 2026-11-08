@@ -2,7 +2,27 @@
 
 个人使用的轻量 macOS 划词翻译工具：选中英文，按快捷键，在浮窗对照原文与中文译文，点击窗口外自动关闭。使用自己的阿里云大模型 API，通过 OpenAI 兼容接口请求翻译，不设置应用侧每日次数限制。
 
-当前开发分支已实现菜单栏、`.env` 设置、快捷键选区、流式翻译和原译文浮窗，已通过本地自动化检查。当前配置已通过公开短句的真实请求检查，用户也确认可以翻译；三类应用的完整兼容性验收未完成，不能视为第一版正式交付。
+## 下载与安装
+
+**[下载安装包：Quick Translate 0.1.0（Apple Silicon）](https://raw.githubusercontent.com/daxiong0327/quick_translate/main/build/Quick-Translate-0.1.0-arm64.dmg)**
+
+[SHA256 校验文件](https://raw.githubusercontent.com/daxiong0327/quick_translate/main/build/Quick-Translate-0.1.0-arm64.dmg.sha256) · [安装包目录](build/)
+
+预览版，适用于 **Apple Silicon（M 系列）**。最低编译目标 macOS 13，当前实测 macOS 15.3.1；暂不提供 Intel 安装包。已实现菜单栏、Option+D 划词、流式翻译和逐段对照；完整跨应用兼容性验收仍在进行。
+
+1. 点击上面的链接下载 DMG，打开后将 **Quick Translate** 拖到 **Applications（应用程序）**。
+2. 从“应用程序”打开工具。首次启动若被系统拦截，确认来自本仓库后，在“系统设置 → 隐私与安全性”中选择“仍要打开”。此版本使用免费自签名，未经过 Apple 公证，参见 [Apple 首次打开说明](https://support.apple.com/en-us/102445)。
+3. 点击菜单栏的 **qt** 图标进入设置，填写自己的接口地址、模型和 API Key，保存配置。
+4. 在“系统设置 → 隐私与安全性 → 辅助功能”添加并启用 Quick Translate。
+5. 在其他应用选中可复制英文，按 **Option+D** 查看翻译。点击窗口外、右上角 × 或 Esc 关闭。
+
+更新时先退出旧版，再替换“应用程序”中的 Quick Translate。安装版配置保存在 **`~/.config/quick-translate/.env`**，与应用包分开，更新不会覆盖；首次保存自动建立目录，目录权限 0700、文件权限 0600。安装包不包含开发者的配置或 Key，也不使用系统钥匙串保存 API Key。
+
+应用通过复制取得选区，会覆盖剪贴板；选中的内容发送到你配置的服务地址。应用不设每日次数限制，服务商的费用和限额按你的账号执行。
+
+## 项目与验收
+
+当前配置曾通过公开短句的真实请求检查，用户也确认可以翻译；三类应用的完整兼容性验收尚未完成。安装包交付与验证见 [M003-T001](docs/tasks/tasks/M003-T001.md)。
 
 - [需求与验收](docs/requirements.md)
 - [开发规范](docs/development-standards.md)
@@ -11,7 +31,7 @@
 - [第一版实现规划](docs/tasks/milestones/M002.md)
 - [第一版验收计划](docs/testing/M002.md)
 
-本地 Git 仓库主分支为 `main`，远端 `origin` 已配置为 `git@github.com:daxiong0327/quick_translate.git`，本次仅配置远端并保存本地提交，尚未推送。菜单栏与配置任务 M002-T001 已合并；翻译任务 M002-T002 位于 `feat/m002-t002-selection-translation`，按用户要求保存阶段成果，完整跨应用验收仍待补齐，尚未合并；提交与验证状态见 [Task 记录](docs/tasks/tasks/M002-T002.md)。
+源码主分支为 `main`，远端为 `git@github.com:daxiong0327/quick_translate.git`。菜单栏、翻译界面和固定签名成果已集成；完整兼容性验收继续跟踪在 [M002-T002](docs/tasks/tasks/M002-T002.md)，不把预览包发布视为所有环境都已验证。
 
 ## 本地构建与配置
 
@@ -23,13 +43,22 @@ sh scripts/build-app.sh
 open "build/Quick Translate.app"
 ```
 
-产物为 `build/Quick Translate.app`，使用固定的免费自签名身份，不是 Apple Developer ID 签名，也没有公证。`setup` 初次创建证书，重复运行复用原证书；后续构建无需重复初始化。构建在临时目录完成图标生成和严格签名校验后才替换原应用，缺少签名身份时停止，不退回临时签名。应用仍从构建时登记的项目绝对路径读取 `.env`；移动项目目录后重新构建。这仍是开发包，尚不能作为可移植的 GitHub 发行包。
+产物为 `build/Quick Translate.app`，使用固定的免费自签名身份，不是 Apple Developer ID 签名，也没有公证。`setup` 初次创建证书，重复运行复用原证书；后续构建无需重复初始化。构建在临时目录完成图标生成和严格签名校验后才替换原应用，缺少签名身份时停止，不退回临时签名。此命令生成开发包，从构建时登记的项目绝对路径读取 `.env`；移动项目目录后重新构建。
+
+制作可移植的发行安装包：
+
+```sh
+python3 scripts/package-app.py
+python3 scripts/check-package.py build/Quick-Translate-0.1.0-arm64.dmg
+```
+
+发行应用位于 `build/distribution/Quick Translate.app`，不包含开发机的配置路径；DMG 与 SHA256 文件直接放在 `build/`。本仓库仅收录这两个发行文件，展开的应用、编译缓存、烟测报告和签名材料继续忽略。更新正式下载文件时需重新验证并更新校验文件。
 
 签名身份保存在用户目录 `~/Library/Application Support/Quick Translate Signing/`，目录权限 0700、文件 0600。它包含加密的 `identity.p12`、`password`、公开证书、身份记录和专用签名钥匙串。该钥匙串只保存签名私钥，与翻译 API Key 无关；脚本仅在签署期间临时加入钥匙串搜索列表，结束后移除并锁定，不修改系统信任设置。详情和备份步骤见 [本地签名说明](docs/local-signing.md)。
 
 从旧临时签名首次切换到自签名，可能需要重新添加辅助功能授权。以后的构建绑定相同证书与应用标识，不再绑定每次变化的代码哈希。本机已验证：用户授权后，同一路径从构建 2 替换为构建 3，代码哈希变化，重启后的辅助功能授权仍保留；其他系统和安装环境尚未验证。单纯退出或重启不会更换签名。下载自签名包时仍可能遇到系统拦截，不能把自签名等同于 Apple 认可或公证。
 
-在设置窗口或项目 `.env` 填写 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`DASHSCOPE_API_KEY`。接口地址填写兼容接口基础路径，不包含 `/chat/completions`。地址和模型以所选地域的阿里云控制台为准，参考 [阿里官方兼容接口说明](https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope)。`.env.example` 中的地址和模型仅供参考，API Key 留空；真实 `.env` 被 Git 忽略，文件保存权限为 0600。API Key 不写入系统钥匙串或系统偏好。
+在设置窗口或当前构建所使用的 `.env` 填写 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`DASHSCOPE_API_KEY`。接口地址填写兼容接口基础路径，不包含 `/chat/completions`。地址和模型以所选地域的阿里云控制台为准，参考 [阿里官方兼容接口说明](https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope)。`.env.example` 中的地址和模型仅供参考，API Key 留空；真实 `.env` 被 Git 忽略，文件保存权限为 0600。API Key 不写入系统钥匙串或系统偏好。
 
 `.env` 支持普通键值、单引号、JSON 风格双引号、注释与 `export` 前缀，不执行变量替换或 shell 命令。设置保存会保留无关条目与独立注释；在外部编辑后，关闭设置再从菜单栏重新打开，即可读取最新配置；已打开时重复激活设置会保留当前编辑。外部修改冲突仍会阻止保存。保存成功后按钮显示“已保存”，只表示本地文件已写入，不代表模型已连通。设置页不显示文件路径和常驻说明，必要错误仍会提示。
 
