@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import SwiftUI
 import TranslationCore
 
@@ -14,6 +15,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     let arguments = CommandLine.arguments
+    if arguments == [arguments[0], "--accessibility-status"] {
+      // Launch via Launch Services to inspect this bundle's own permission without prompting.
+      print("{\"accessibilityTrusted\":\(AXIsProcessTrusted())}")
+      NSApp.terminate(nil)
+      return
+    }
     if arguments.count == 4, arguments[1] == "--smoke-test",
       ["save", "reload", "translation"].contains(arguments[3])
     {
@@ -30,8 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let store = EnvironmentSettingsStore(fileURL: URL(fileURLWithPath: path))
     settingsModel = SettingsModel(store: store)
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    item.button?.image = NSImage(
-      systemSymbolName: "character.bubble", accessibilityDescription: "Quick Translate")
+    item.button?.image = BrandIcon.image(size: 18, style: .menu)
     item.button?.toolTip = "Quick Translate"
     let menu = NSMenu()
     let settings = NSMenuItem(title: "设置…", action: #selector(showSettings), keyEquivalent: ",")
@@ -66,12 +72,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func setupTranslation(
     store: EnvironmentSettingsStore,
     client: any TranslationServing = OpenAITranslationClient(),
+    pasteboard: NSPasteboard = .general,
     capture: @escaping @MainActor (NSRunningApplication?) async throws -> String = {
       try await SystemSelection().capture(from: $0)
     }
   ) {
     let model = TranslationController(store: store, client: client, capture: capture)
-    let panel = TranslationPanelController(model: model) { [weak self] in
+    let panel = TranslationPanelController(model: model, pasteboard: pasteboard) { [weak self] in
       self?.translation?.close()
       self?.showSettings()
     }
@@ -82,7 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       if model.state.phase == .hidden {
         panel?.hide()
       } else if model.state.phase != .capturing {
-        panel?.show(near: model.anchor)
+        panel?.show(on: model.displayScreen)
       }
     }
     let keys = HotKeyController()
@@ -134,6 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc func showSettings() {
+    let shouldReload = settingsWindow?.isVisible != true
     if settingsWindow == nil, let model = settingsModel {
       let window = NSWindow(
         contentRect: NSRect(x: 0, y: 0, width: 576, height: 440),
@@ -146,6 +154,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     NSApp.activate(ignoringOtherApps: true)
     settingsWindow?.makeKeyAndOrderFront(nil)
+    if shouldReload, let model = settingsModel {
+      Task { await model.reload() }
+    }
   }
 
   @objc private func quitApp() { NSApp.terminate(nil) }
@@ -175,16 +186,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.apiKey == "fixture-not-a-real-api-key"
       else { throw SettingsError.unreadableFile }
       var checks = [String: String]()
+      // Removing the reload button must still leave a way to recover from external file changes.
+      model.model = "unsaved edit"
+      menu.performActionForItem(at: 0)
+      try await Task.sleep(for: .milliseconds(50))
+      guard model.model == "unsaved edit", model.saveButtonTitle == "保存配置" else {
+        throw SettingsError.invalidValue
+      }
+      let previous = try await model.store.load()
+      var external = previous.draft
+      external.model = "external edit"
+      _ = try await model.store.save(external, expectedRevision: previous.revision)
+      await model.save()
+      guard !model.succeeded, model.message.contains("关闭并重新打开") else {
+        throw SettingsError.changedOnDisk
+      }
+      window.close()
+      menu.performActionForItem(at: 0)
+      try await TranslationSmoke.wait { !model.busy && model.model == "external edit" }
+      model.model = "smoke-test-model"
+      await model.save()
+      guard model.succeeded, model.message.isEmpty, model.saveButtonTitle == "已保存" else {
+        throw SettingsError.unwritableFile
+      }
+      checks["settingsReopenReloadsAndVisibleReopenPreservesEdits"] = "passed: own-app menu"
+      checks["externalChangeConflictAndRecovery"] = "passed: isolated file"
+      checks["compactSaveFeedback"] = "passed"
+      guard statusItem?.button?.image?.isTemplate == true,
+        let icon = Bundle.main.url(forResource: "QuickTranslate", withExtension: "icns"),
+        NSImage(contentsOf: icon) != nil
+      else { throw SettingsError.unreadableFile }
+      checks["bundledIconAndMenuTemplate"] = "passed"
       if phase == "translation" {
         let source = SmokeSelection()
         setupTranslation(
-          store: model.store, client: SmokeTranslationClient(), capture: { _ in source.text })
+          store: model.store, client: SmokeTranslationClient(),
+          pasteboard: NSPasteboard(name: NSPasteboard.Name(directory.lastPathComponent)),
+          capture: { _ in source.text })
         guard let translation, let translationPanel, let hotKeys else {
           throw TranslationError.invalidResponse
         }
-        checks = try await TranslationSmoke.run(
+        let translationChecks = try await TranslationSmoke.run(
           model: translation, panel: translationPanel, source: source,
           settingsWindow: window, hotKeys: hotKeys, directory: directory)
+        checks.merge(translationChecks) { current, _ in current }
       }
       try await Task.sleep(for: .milliseconds(200))
       if let snapshot = CGWindowListCreateImage(
@@ -223,6 +268,15 @@ struct QuickTranslateApp {
   @MainActor
   static func main() {
     let app = NSApplication.shared
+    if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--export-icon" {
+      do {
+        try BrandIcon.export(to: URL(fileURLWithPath: CommandLine.arguments[2]))
+      } catch {
+        print("Unable to export application icon.")
+        exit(1)
+      }
+      return
+    }
     let delegate = AppDelegate()
     app.delegate = delegate
     app.setActivationPolicy(.accessory)

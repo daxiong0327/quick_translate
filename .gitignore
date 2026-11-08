@@ -8,6 +8,10 @@
 *.pem
 *.key
 *.p12
+*.pfx
+*.keychain
+*.keychain-db
+__pycache__/
 
 # Local build outputs and logs
 build/
