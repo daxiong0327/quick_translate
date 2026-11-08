@@ -39,6 +39,7 @@ def build(*, distribution=False):
             executable.parent.mkdir(parents=True)
             resources.mkdir()
             shutil.copy2(binary_directory / "QuickTranslate", executable)
+            shutil.copy2(ROOT / "LICENSE", resources / "LICENSE.txt")
             iconset = staging / "QuickTranslate.iconset"
             subprocess.run([str(executable), "--export-icon", str(iconset)], check=True)
             subprocess.run(["/usr/bin/iconutil", "-c", "icns", str(iconset), "-o",

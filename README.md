@@ -4,25 +4,25 @@
 
 ## 下载与安装
 
-**[下载安装包：Quick Translate 0.1.0（Apple Silicon）](https://raw.githubusercontent.com/daxiong0327/quick_translate/main/build/Quick-Translate-0.1.0-arm64.dmg)**
+**[下载安装包：Quick Translate 0.1.0（Apple Silicon · 安装向导）](https://raw.githubusercontent.com/daxiong0327/quick_translate/main/build/Quick-Translate-0.1.0-arm64.pkg)**
 
-[SHA256 校验文件](https://raw.githubusercontent.com/daxiong0327/quick_translate/main/build/Quick-Translate-0.1.0-arm64.dmg.sha256) · [安装包目录](build/)
+[SHA256 校验文件](https://raw.githubusercontent.com/daxiong0327/quick_translate/main/build/Quick-Translate-0.1.0-arm64.pkg.sha256) · [安装包目录](build/)
 
 预览版，适用于 **Apple Silicon（M 系列）**。最低编译目标 macOS 13，当前实测 macOS 15.3.1；暂不提供 Intel 安装包。已实现菜单栏、Option+D 划词、流式翻译和逐段对照；完整跨应用兼容性验收仍在进行。
 
-1. 点击上面的链接下载 DMG，打开后将 **Quick Translate** 拖到 **Applications（应用程序）**。
-2. 从“应用程序”打开工具。首次启动若被系统拦截，确认来自本仓库后，在“系统设置 → 隐私与安全性”中选择“仍要打开”。此版本使用免费自签名，未经过 Apple 公证，参见 [Apple 首次打开说明](https://support.apple.com/en-us/102445)。
+1. 点击上面的链接下载 **`.pkg`**，双击进入 macOS 安装向导，按 **“继续 → 安装”**。系统可能要求用 Mac 登录密码或 Touch ID 确认，完成后应用位于 **“应用程序”**，无需自己拖拽或复制。
+2. 从“应用程序”打开 **Quick Translate**。安装包或应用首次打开若被系统拦截，确认来自本仓库后，在“系统设置 → 隐私与安全性”中选择“仍要打开”。安装包本身未签署 Developer ID Installer，包内应用使用固定免费自签名，两者均未公证；参见 [Apple 首次打开说明](https://support.apple.com/en-us/102445)。
 3. 点击菜单栏的 **qt** 图标进入设置，填写自己的接口地址、模型和 API Key，保存配置。
 4. 在“系统设置 → 隐私与安全性 → 辅助功能”添加并启用 Quick Translate。
 5. 在其他应用选中可复制英文，按 **Option+D** 查看翻译。点击窗口外、右上角 × 或 Esc 关闭。
 
-更新时先退出旧版，再替换“应用程序”中的 Quick Translate。安装版配置保存在 **`~/.config/quick-translate/.env`**，与应用包分开，更新不会覆盖；首次保存自动建立目录，目录权限 0700、文件权限 0600。安装包不包含开发者的配置或 Key，也不使用系统钥匙串保存 API Key。
+更新时先退出旧版，再运行新版安装包，安装器会更新“应用程序”中的 Quick Translate，无需卸载。安装版配置保存在 **`~/.config/quick-translate/.env`**，与应用包分开，更新不会覆盖；首次保存自动建立目录，目录权限 0700、文件权限 0600。安装包不包含开发者的配置或 Key，也不使用系统钥匙串保存 API Key。
 
 应用通过复制取得选区，会覆盖剪贴板；选中的内容发送到你配置的服务地址。应用不设每日次数限制，服务商的费用和限额按你的账号执行。
 
 ## 项目与验收
 
-当前配置曾通过公开短句的真实请求检查，用户也确认可以翻译；三类应用的完整兼容性验收尚未完成。安装包交付与验证见 [M003-T001](docs/tasks/tasks/M003-T001.md)。
+当前配置曾通过公开短句的真实请求检查，用户也确认可以翻译；三类应用的完整兼容性验收尚未完成。原安装包交付见 [M003-T001](docs/tasks/tasks/M003-T001.md)，系统安装向导改进见 [Fix001-T001](docs/tasks/tasks/Fix001-T001.md)。
 
 - [需求与验收](docs/requirements.md)
 - [开发规范](docs/development-standards.md)
@@ -49,10 +49,10 @@ open "build/Quick Translate.app"
 
 ```sh
 python3 scripts/package-app.py
-python3 scripts/check-package.py build/Quick-Translate-0.1.0-arm64.dmg
+python3 scripts/check-package.py build/Quick-Translate-0.1.0-arm64.pkg
 ```
 
-发行应用位于 `build/distribution/Quick Translate.app`，不包含开发机的配置路径；DMG 与 SHA256 文件直接放在 `build/`。本仓库仅收录这两个发行文件，展开的应用、编译缓存、烟测报告和签名材料继续忽略。更新正式下载文件时需重新验证并更新校验文件。
+发行应用位于 `build/distribution/Quick Translate.app`，不包含开发机的配置路径；PKG 与 SHA256 文件直接放在 `build/`。使用系统自带的 `pkgbuild` / `productbuild` 制作欢迎、安装与完成流程，中文资源位于 `packaging/`；目标固定为 `/Applications`，不运行自定义安装脚本。本仓库仅收录这两个发行文件，展开的应用、编译缓存、烟测报告和签名材料继续忽略。校验入口检查真实包结构、安装器选项及展开应用的隔离配置保存/重启，不会自动执行管理员安装。更新正式下载文件时需重新验证并更新校验文件。
 
 签名身份保存在用户目录 `~/Library/Application Support/Quick Translate Signing/`，目录权限 0700、文件 0600。它包含加密的 `identity.p12`、`password`、公开证书、身份记录和专用签名钥匙串。该钥匙串只保存签名私钥，与翻译 API Key 无关；脚本仅在签署期间临时加入钥匙串搜索列表，结束后移除并锁定，不修改系统信任设置。详情和备份步骤见 [本地签名说明](docs/local-signing.md)。
 
